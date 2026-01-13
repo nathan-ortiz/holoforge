@@ -132,21 +132,120 @@ def generate_ellipsoid(num_points, radii, center):
 
 def load_stanford_bunny(num_points=6000):
     """
-    Load pre-sampled Stanford Bunny point cloud from file
-    If file doesn't exist, create simple bunny-like shape from ellipsoids
+    Load Stanford Bunny from OBJ file, NPY file, or generate ellipsoid fallback
+
+    Priority:
+    1. stanford_bunny.obj or stanford-bunny.obj (actual mesh)
+    2. bunny_points.npy (pre-sampled points)
+    3. Ellipsoid approximation (fallback)
+
+    Args:
+        num_points: Target number of particles
+
+    Returns:
+        NumPy array (N, 3) of bunny point cloud
     """
+    import os
+
+    # Priority 1: Try to load OBJ file (actual Stanford Bunny mesh)
+    obj_paths = [
+        'stanford_bunny.obj',
+        'stanford-bunny.obj',
+        '../stanford_bunny.obj',
+        '../stanford-bunny.obj'
+    ]
+
+    for obj_path in obj_paths:
+        if os.path.exists(obj_path):
+            try:
+                print(f"  Loading Stanford Bunny from {obj_path}...")
+                vertices = parse_obj_file(obj_path)
+
+                if len(vertices) == 0:
+                    print(f"  Warning: No vertices found in {obj_path}")
+                    continue
+
+                # Center the mesh
+                vertices = vertices - np.mean(vertices, axis=0)
+
+                # Scale to fit coordinate space (±100 range)
+                max_extent = np.max(np.abs(vertices))
+                if max_extent > 0:
+                    vertices = vertices * (90.0 / max_extent)  # Slightly smaller than ±100
+
+                # Sample to target particle count
+                if len(vertices) >= num_points:
+                    # Downsample: random selection without replacement
+                    indices = np.random.choice(len(vertices), num_points, replace=False)
+                else:
+                    # Upsample: random selection with replacement
+                    indices = np.random.choice(len(vertices), num_points, replace=True)
+
+                print(f"  ✓ Stanford Bunny loaded: {len(vertices)} vertices → {num_points} particles")
+                return vertices[indices]
+
+            except Exception as e:
+                print(f"  Warning: Failed to parse {obj_path}: {e}")
+                continue
+
+    # Priority 2: Try to load pre-sampled NumPy file
     try:
         points = np.load('bunny_points.npy')
         # Resample to target count
-        indices = np.random.choice(len(points), num_points, replace=True)
+        indices = np.random.choice(len(points), num_points, replace=(len(points) < num_points))
+        print(f"  ✓ Loaded bunny from bunny_points.npy")
         return points[indices] * 150  # Scale to fit cube
     except FileNotFoundError:
-        # Fallback: Create simple bunny-like shape (ellipsoids)
-        body = generate_ellipsoid(num_points // 2, (40, 50, 30), (0, 0, 0))
-        head = generate_ellipsoid(num_points // 4, (25, 30, 25), (0, 60, 0))
-        ear1 = generate_ellipsoid(num_points // 8, (8, 25, 8), (-15, 85, 0))
-        ear2 = generate_ellipsoid(num_points // 8, (8, 25, 8), (15, 85, 0))
-        return np.vstack([body, head, ear1, ear2])
+        pass
+
+    # Priority 3: Fallback to ellipsoid approximation
+    print(f"  Note: Using ellipsoid approximation (no OBJ/NPY file found)")
+    body = generate_ellipsoid(num_points // 2, (40, 50, 30), (0, 0, 0))
+    head = generate_ellipsoid(num_points // 4, (25, 30, 25), (0, 60, 0))
+    ear1 = generate_ellipsoid(num_points // 8, (8, 25, 8), (-15, 85, 0))
+    ear2 = generate_ellipsoid(num_points // 8, (8, 25, 8), (15, 85, 0))
+    return np.vstack([body, head, ear1, ear2])
+
+
+def parse_obj_file(filepath):
+    """
+    Parse OBJ file and extract vertex positions
+
+    OBJ format: Lines starting with "v " contain vertices
+    Format: v x y z [w] (w is optional, we ignore it)
+
+    Args:
+        filepath: Path to .obj file
+
+    Returns:
+        NumPy array (N, 3) of vertex positions
+    """
+    vertices = []
+
+    with open(filepath, 'r') as f:
+        for line in f:
+            line = line.strip()
+
+            # Skip empty lines and comments
+            if not line or line.startswith('#'):
+                continue
+
+            # Parse vertex lines
+            if line.startswith('v '):
+                parts = line.split()
+
+                # Extract x, y, z coordinates (ignore w if present)
+                if len(parts) >= 4:
+                    try:
+                        x = float(parts[1])
+                        y = float(parts[2])
+                        z = float(parts[3])
+                        vertices.append([x, y, z])
+                    except (ValueError, IndexError) as e:
+                        # Skip malformed lines
+                        continue
+
+    return np.array(vertices) if vertices else np.empty((0, 3))
 
 
 def generate_detailed_sphere(num_points=6000, radius=70):

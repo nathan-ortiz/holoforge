@@ -189,9 +189,24 @@ This implementation has been optimized for **movie-quality** visuals on the beam
 3. **Double Helix Torus** ⭐ NEW - Signature "wow" shape combining DNA + torus geometry
 4. **Face Capture** - Your face in true 3D with gradient-based depth estimation
 5. **Lorenz Attractor** - Chaotic butterfly attractor
-6. **Stanford Bunny** - Iconic 3D model (or ellipsoid approximation)
+6. **Stanford Bunny** - Iconic 3D model with OBJ file support
 7. **Detailed Sphere** - Fibonacci-distributed sphere with subtle noise
 8. **Wireframe Cube** ⭐ ENHANCED - 12 edges + 8 glowing vertices for depth perception
+
+### Stanford Bunny OBJ Support
+
+The system now supports loading the **actual Stanford Bunny mesh** from an OBJ file:
+
+**Usage:**
+- Place `stanford_bunny.obj` (or `stanford-bunny.obj`) in the project root directory
+- System automatically detects and uses it at startup
+- Parses OBJ format and extracts vertex positions
+- Auto-scales to fit coordinate space (±90 range)
+- Resamples to target particle count (6,000 by default)
+
+**Fallback:** If no OBJ file found, uses ellipsoid approximation (4 combined ellipsoids for body, head, and ears)
+
+**Test:** Run `python test_obj_parsing.py` to validate OBJ file loading
 
 ### Face Capture Enhancement (Sci-Fi Quality)
 
