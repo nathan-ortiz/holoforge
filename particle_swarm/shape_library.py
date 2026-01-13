@@ -4,7 +4,31 @@ All shapes return NumPy arrays of (N, 3) positions
 """
 
 import numpy as np
+import os
 from config import PARTICLE_COUNT
+
+# Path to the OBJ file relative to project root
+OBJ_FILE_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'stanford-bunny.obj')
+
+
+def load_obj_vertices(filepath):
+    """
+    Parse OBJ file and extract vertex positions.
+
+    Args:
+        filepath: Path to the OBJ file
+
+    Returns:
+        NumPy array (N, 3) of vertex positions
+    """
+    vertices = []
+    with open(filepath, 'r') as f:
+        for line in f:
+            if line.startswith('v '):
+                parts = line.strip().split()
+                x, y, z = float(parts[1]), float(parts[2]), float(parts[3])
+                vertices.append([x, y, z])
+    return np.array(vertices)
 
 
 def generate_dna_helix(num_points=6000, height=150, radius=40):
@@ -110,15 +134,30 @@ def generate_ellipsoid(num_points, radii, center):
 
 def load_stanford_bunny(num_points=6000):
     """
-    Load pre-sampled Stanford Bunny point cloud from file
-    If file doesn't exist, create simple bunny-like shape from ellipsoids
+    Load Stanford Bunny from OBJ file and sample points.
+    If file doesn't exist, create simple bunny-like shape from ellipsoids.
     """
     try:
-        points = np.load('bunny_points.npy')
-        # Resample to target count
-        indices = np.random.choice(len(points), num_points, replace=True)
-        return points[indices] * 150  # Scale to fit cube
-    except FileNotFoundError:
+        # Load vertices from OBJ file
+        vertices = load_obj_vertices(OBJ_FILE_PATH)
+
+        # Center the model
+        centroid = vertices.mean(axis=0)
+        vertices = vertices - centroid
+
+        # Scale to fit display (original bunny is very small ~0.2 units)
+        max_extent = np.abs(vertices).max()
+        scale_factor = 80.0 / max_extent  # Scale to ~80 units
+        vertices = vertices * scale_factor
+
+        # Resample to target point count
+        if len(vertices) >= num_points:
+            indices = np.random.choice(len(vertices), num_points, replace=False)
+        else:
+            indices = np.random.choice(len(vertices), num_points, replace=True)
+
+        return vertices[indices]
+    except (FileNotFoundError, IOError):
         # Fallback: Create simple bunny-like shape (ellipsoids)
         body = generate_ellipsoid(num_points // 2, (40, 50, 30), (0, 0, 0))
         head = generate_ellipsoid(num_points // 4, (25, 30, 25), (0, 60, 0))
