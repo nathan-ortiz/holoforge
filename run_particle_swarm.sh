@@ -28,6 +28,11 @@ fi
 # Run the particle swarm
 echo "Starting particle swarm..."
 echo ""
+
+# MODERATE FIX #4: Set DISPLAY for HyperPixel on Raspberry Pi
+# Required for graphics to appear on HyperPixel 4.0 Square display
+export DISPLAY=:0.0
+
 cd particle_swarm
 python main.py
 

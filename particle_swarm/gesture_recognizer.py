@@ -196,13 +196,19 @@ class GestureRecognizer:
         palm_y = np.mean([landmarks.landmark[i].y for i in palm_landmarks])
         palm_z = np.mean([landmarks.landmark[i].z for i in palm_landmarks])
 
-        # Map to particle coordinate space
+        # CRITICAL FIX #3: Map to particle coordinate space (NOT display space)
         # Camera: x [0,1], y [0,1], z [-0.1, 0.1] (relative depth)
-        # Particle space: centered at origin, scaled to display
+        # Particle space: roughly ±100 for x,y,z (matching shapes in shape_library.py)
+        #
+        # Note: Shapes use coordinates like:
+        #   - DNA helix: height=150, radius=40 → roughly ±75 in y, ±40 in x,z
+        #   - Torus knot: R=60, r=20 → roughly ±80
+        #   - Sphere: radius=70 → ±70
+        # So we map hand to ±150 range to cover the full particle volume
 
-        x = (palm_x - 0.5) * display_width
-        y = (palm_y - 0.5) * display_height
-        z = palm_z * 500  # Depth (MediaPipe z is relative, scale up)
+        x = (palm_x - 0.5) * 300  # Range: -150 to +150
+        y = (palm_y - 0.5) * 300  # Range: -150 to +150
+        z = palm_z * 200  # Depth range: roughly -100 to +100
 
         return (x, y, z)
 

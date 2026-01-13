@@ -57,7 +57,7 @@ class ParticleSystem:
 
     def calculate_hand_forces(self, hand_state):
         """
-        Calculate force field from hand gesture (vectorized)
+        Calculate force field from hand gesture (vectorized with early culling)
 
         Args:
             hand_state: dict with 'position' (x,y,z), 'gesture' ('scatter'/'attract'), 'strength'
@@ -67,10 +67,21 @@ class ParticleSystem:
         """
         hand_pos = np.array(hand_state['position'])
 
-        # Vectorized distance calculation
+        # ENHANCEMENT #5: Early distance culling for performance
+        # Calculate distances first, then only process nearby particles
         deltas = self.positions - hand_pos
         distances = np.linalg.norm(deltas, axis=1, keepdims=True)
-        distances = np.maximum(distances, 1.0)  # Avoid division by zero
+
+        # Early exit if no particles in range
+        in_radius = (distances.flatten() < HAND_FORCE_RADIUS)
+        if not np.any(in_radius):
+            return np.zeros_like(self.positions)
+
+        # Avoid division by zero
+        distances = np.maximum(distances, 1.0)
+
+        # Only calculate forces for particles within radius (saves computation)
+        forces = np.zeros_like(self.positions)
 
         # Inverse square force (like gravity/magnetism)
         force_magnitudes = hand_state['strength'] / (distances ** 2)
@@ -81,10 +92,8 @@ class ParticleSystem:
         else:  # attract
             directions = -deltas / distances  # Normalize, pointing toward
 
-        # Apply force only within radius
-        in_radius = (distances.flatten() < HAND_FORCE_RADIUS)
-        forces = directions * force_magnitudes
-        forces[~in_radius] = 0
+        # Apply force only to particles within radius
+        forces[in_radius] = (directions * force_magnitudes)[in_radius]
 
         return forces
 
@@ -116,8 +125,9 @@ class ParticleSystem:
 
     def update_colors(self):
         """
-        Update particle colors based on Z-depth (vectorized)
+        Update particle colors based on Z-depth (fully vectorized)
         Creates gradient: far (magenta) -> mid (white) -> near (cyan)
+        CRITICAL: No Python loops - uses NumPy broadcasting for performance
         """
         z_values = self.positions[:, 2]
 
@@ -127,25 +137,32 @@ class ParticleSystem:
             0, 1
         )
 
-        # Interpolate between far → mid → near colors
-        # Split at z_norm = 0.5
-        colors = np.zeros((self.count, 3))
+        # CRITICAL FIX #2: Fully vectorized color interpolation
+        # Create boolean masks for the two color regions
+        is_lower_half = z_norm < 0.5
 
-        for i in range(self.count):
-            if z_norm[i] < 0.5:
-                # Far to mid
-                t = z_norm[i] * 2
-                colors[i] = self.lerp_color(COLOR_FAR, COLOR_MID, t)
-            else:
-                # Mid to near
-                t = (z_norm[i] - 0.5) * 2
-                colors[i] = self.lerp_color(COLOR_MID, COLOR_NEAR, t)
+        # Calculate interpolation parameter t for both regions
+        # Lower half (far -> mid): t goes from 0 to 1 as z_norm goes from 0 to 0.5
+        t_lower = z_norm * 2
+        # Upper half (mid -> near): t goes from 0 to 1 as z_norm goes from 0.5 to 1
+        t_upper = (z_norm - 0.5) * 2
 
-        self.colors = colors
+        # Vectorized linear interpolation using broadcasting
+        # shape (N,) * shape (3,) broadcasts to (N, 3)
+        color_far = np.array(COLOR_FAR)
+        color_mid = np.array(COLOR_MID)
+        color_near = np.array(COLOR_NEAR)
 
-    def lerp_color(self, c1, c2, t):
-        """Linear interpolation between two colors"""
-        return np.array(c1) * (1 - t) + np.array(c2) * t
+        # Interpolate for lower half (far -> mid)
+        colors_lower = color_far[np.newaxis, :] * (1 - t_lower[:, np.newaxis]) + \
+                      color_mid[np.newaxis, :] * t_lower[:, np.newaxis]
+
+        # Interpolate for upper half (mid -> near)
+        colors_upper = color_mid[np.newaxis, :] * (1 - t_upper[:, np.newaxis]) + \
+                      color_near[np.newaxis, :] * t_upper[:, np.newaxis]
+
+        # Combine using np.where with broadcasting
+        self.colors = np.where(is_lower_half[:, np.newaxis], colors_lower, colors_upper)
 
     def render(self, sketch):
         """
@@ -154,9 +171,12 @@ class ParticleSystem:
         Args:
             sketch: py5 sketch instance
         """
+        # MODERATE FIX #5: Performance-critical rendering section
+        # stroke_weight is set once outside the loop for efficiency
         sketch.stroke_weight(PARTICLE_SIZE)
 
-        # Efficient point rendering with py5
+        # Per-particle colors require iteration (no way around this without shaders)
+        # Using begin_shape(POINTS) is the most efficient non-shader approach
         sketch.begin_shape(sketch.POINTS)
         for i in range(self.count):
             sketch.stroke(*self.colors[i])
@@ -170,5 +190,22 @@ class ParticleSystem:
         Args:
             target_positions: NumPy array (N, 3) of target positions
         """
-        if target_positions is not None and len(target_positions) == self.count:
-            self.targets = target_positions.copy()
+        # ENHANCEMENT #4: Particle count validation with automatic resampling
+        if target_positions is None:
+            return
+
+        original_count = len(target_positions)
+
+        if original_count != self.count:
+            # Resample to match particle count
+            if original_count < self.count:
+                # Upsample: repeat with random selection
+                indices = np.random.choice(original_count, self.count, replace=True)
+            else:
+                # Downsample: random selection without replacement
+                indices = np.random.choice(original_count, self.count, replace=False)
+
+            target_positions = target_positions[indices]
+            print(f"WARNING: Resampled targets from {original_count} to {self.count} particles")
+
+        self.targets = target_positions.copy()

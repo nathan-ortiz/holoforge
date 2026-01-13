@@ -35,9 +35,27 @@ class CameraCapture:
             self.camera.configure(config)
             self.camera.start()
             print("Camera initialized successfully")
+        except PermissionError as e:
+            # ENHANCEMENT #3: Better error messages for common issues
+            print(f"ERROR: Permission denied accessing camera")
+            print(f"  → Run: sudo usermod -aG video $USER")
+            print(f"  → Then logout and login again")
+            print(f"Running in demo mode without camera")
+            self.camera = None
+        except FileNotFoundError as e:
+            print(f"ERROR: Camera device not found")
+            print(f"  → Enable camera in raspi-config:")
+            print(f"    sudo raspi-config")
+            print(f"    Interface Options → Camera → Enable")
+            print(f"  → Then reboot")
+            print(f"Running in demo mode without camera")
+            self.camera = None
         except Exception as e:
-            print(f"Warning: Camera initialization failed: {e}")
-            print("Running in demo mode without camera")
+            print(f"ERROR: Camera initialization failed: {e}")
+            print(f"  → Check camera cable connection")
+            print(f"  → Verify camera is enabled: vcgencmd get_camera")
+            print(f"  → Full error: {type(e).__name__}: {str(e)}")
+            print(f"Running in demo mode without camera")
             self.camera = None
 
     def initialize_hand_tracking(self):
@@ -69,6 +87,7 @@ class CameraCapture:
             return None
 
         try:
+            # ENHANCEMENT #3: Robust error handling for frame capture
             # Capture frame from camera
             self.current_frame = self.camera.capture_array()
 
@@ -82,8 +101,14 @@ class CameraCapture:
             self.current_landmarks = None
             return None
 
+        except RuntimeError as e:
+            # Camera might have disconnected
+            print(f"ERROR: Camera runtime error: {e}")
+            print(f"  → Check camera connection")
+            return None
         except Exception as e:
-            print(f"Error capturing frame: {e}")
+            # Generic error - log and continue
+            print(f"WARNING: Frame capture error: {type(e).__name__}: {e}")
             return None
 
     def get_current_frame(self):

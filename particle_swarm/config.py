@@ -15,7 +15,16 @@ HAND_FORCE_STRENGTH = 8.0
 HAND_FORCE_RADIUS = 150.0
 BOID_SEPARATION_RADIUS = 15.0
 BOID_SEPARATION_STRENGTH = 0.8
-ENABLE_BOID_SEPARATION = False  # Disable for performance if needed
+
+# ENHANCEMENT #1: Boid Separation Warning
+# ⚠️ CRITICAL PERFORMANCE WARNING ⚠️
+# Boid separation is O(N²) complexity and will DESTROY performance!
+# With 6000 particles, this is 36 MILLION distance calculations per frame.
+# At 60 FPS, that's 2.16 BILLION operations per second!
+#
+# Only enable for testing with <500 particles.
+# STRONGLY RECOMMENDED: Keep this disabled for production use.
+ENABLE_BOID_SEPARATION = False
 
 # Shape Cycling
 SHAPE_HOLD_TIME = 8.0  # seconds
@@ -52,3 +61,7 @@ HAND_MIN_TRACKING_CONFIDENCE = 0.5
 # 3D Camera Settings
 CAMERA_EYE_Z = 500  # Distance from origin
 AUTO_ROTATE_SPEED = 0.1  # Radians per second
+
+# Performance Monitoring
+# ENHANCEMENT #2: Enable verbose FPS logging every 5 seconds
+VERBOSE_LOGGING = False  # Set to True for detailed performance metrics

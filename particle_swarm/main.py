@@ -13,13 +13,15 @@ from camera_capture import CameraCapture, MockCamera
 from config import *
 
 
-class NeuralParticleSwarm:
+class NeuralParticleSwarm(py5.Sketch):
     """
     Main application class for particle swarm visualization
     Integrates all components into a cohesive py5 sketch
+    Uses py5 class mode by inheriting from py5.Sketch
     """
 
     def __init__(self):
+        super().__init__()
         # Core systems
         self.particle_system = None
         self.shape_library = None
@@ -31,9 +33,14 @@ class NeuralParticleSwarm:
         self.start_time = 0
         self.frame_times = []
         self.show_fps = True
+        self.last_fps_log = 0
 
         # Rotation
         self.auto_rotation = 0
+
+    def settings(self):
+        """py5 settings - called first to set size and renderer"""
+        self.size(DISPLAY_WIDTH, DISPLAY_HEIGHT, self.P3D)
 
     def setup(self):
         """py5 setup function - called once at start"""
@@ -41,15 +48,14 @@ class NeuralParticleSwarm:
         print("NEURAL PARTICLE SWARM - HoloForge")
         print("=" * 60)
 
-        # Create window
-        py5.size(DISPLAY_WIDTH, DISPLAY_HEIGHT, py5.P3D)
-        py5.frame_rate(FRAME_RATE)
+        # Set frame rate
+        self.frame_rate(FRAME_RATE)
 
         # Camera setup for 3D
-        py5.camera(0, 0, CAMERA_EYE_Z, 0, 0, 0, 0, 1, 0)
+        self.camera(0, 0, CAMERA_EYE_Z, 0, 0, 0, 0, 1, 0)
 
         # Smooth rendering
-        py5.smooth()
+        self.smooth()
 
         print("\nInitializing systems...")
 
@@ -102,7 +108,7 @@ class NeuralParticleSwarm:
         frame_start = time.time()
 
         # Clear background
-        py5.background(*BACKGROUND_COLOR)
+        self.background(*BACKGROUND_COLOR)
 
         # Calculate time
         current_time = time.time() - self.start_time
@@ -167,73 +173,82 @@ class NeuralParticleSwarm:
         self.particle_system.update(dt, hand_force)
 
         # 6. Render particles
-        py5.push_matrix()
-        py5.translate(DISPLAY_WIDTH/2, DISPLAY_HEIGHT/2, 0)
+        self.push_matrix()
+        self.translate(DISPLAY_WIDTH/2, DISPLAY_HEIGHT/2, 0)
 
         # Add gentle rotation to shapes (except during gestures)
         if hand_force is None and not self.transition_manager.frozen:
-            self.auto_rotation = (current_time * AUTO_ROTATE_SPEED) % (2 * py5.PI)
-            py5.rotate_y(self.auto_rotation)
+            self.auto_rotation = (current_time * AUTO_ROTATE_SPEED) % (2 * self.PI)
+            self.rotate_y(self.auto_rotation)
 
-        self.particle_system.render(py5)
-        py5.pop_matrix()
+        self.particle_system.render(self)
+        self.pop_matrix()
 
         # 7. Display FPS and info
         if self.show_fps:
             self.draw_ui(current_time)
 
-        # Track frame time
+        # Track frame time and optional performance logging
         frame_time = time.time() - frame_start
         self.frame_times.append(frame_time)
         if len(self.frame_times) > 60:
             self.frame_times.pop(0)
 
+        # ENHANCEMENT #2: FPS performance logging
+        if VERBOSE_LOGGING and current_time - self.last_fps_log > 5.0:
+            if self.frame_times:
+                avg_fps = 1.0 / (sum(self.frame_times) / len(self.frame_times))
+                min_fps = 1.0 / max(self.frame_times)
+                max_fps = 1.0 / min(self.frame_times)
+                print(f"Avg FPS: {avg_fps:.1f} | Min: {min_fps:.1f} | Max: {max_fps:.1f}")
+                self.last_fps_log = current_time
+
     def draw_ui(self, current_time):
         """Draw UI overlay with FPS and status"""
         # Switch to 2D rendering for UI
-        py5.camera()
-        py5.reset_matrix()
+        self.camera()
+        self.reset_matrix()
 
         # FPS counter
-        fps = py5.get_frame_rate()
-        py5.fill(255, 255, 0)
-        py5.text_size(16)
-        py5.text(f"FPS: {fps:.1f}", 10, 20)
+        fps = self.get_frame_rate()
+        self.fill(255, 255, 0)
+        self.text_size(16)
+        self.text(f"FPS: {fps:.1f}", 10, 20)
 
         # Current shape
         shape_name = self.transition_manager.get_current_shape_name()
         state = self.transition_manager.state
-        py5.text(f"Shape: {shape_name}", 10, 40)
-        py5.text(f"State: {state}", 10, 60)
+        self.text(f"Shape: {shape_name}", 10, 40)
+        self.text(f"State: {state}", 10, 60)
 
         # Frozen indicator
         if self.transition_manager.frozen:
-            py5.fill(255, 100, 100)
-            py5.text("FROZEN", 10, 80)
+            self.fill(255, 100, 100)
+            self.text("FROZEN", 10, 80)
 
         # Particle count
-        py5.fill(255, 255, 0)
-        py5.text(f"Particles: {PARTICLE_COUNT}", 10, 100)
+        self.fill(255, 255, 0)
+        self.text(f"Particles: {PARTICLE_COUNT}", 10, 100)
 
         # Restore 3D camera
-        py5.camera(0, 0, CAMERA_EYE_Z, 0, 0, 0, 0, 1, 0)
+        self.camera(0, 0, CAMERA_EYE_Z, 0, 0, 0, 0, 1, 0)
 
     def key_pressed(self):
         """Handle keyboard input"""
-        if py5.key == 'f' or py5.key == 'F':
+        if self.key == 'f' or self.key == 'F':
             self.show_fps = not self.show_fps
             print(f"FPS display: {'ON' if self.show_fps else 'OFF'}")
 
-        elif py5.key == 'q' or py5.key == 'Q':
+        elif self.key == 'q' or self.key == 'Q':
             print("\nShutting down...")
             self.cleanup()
-            py5.exit()
+            self.exit()
 
-        elif py5.key == 's' or py5.key == 'S':
+        elif self.key == 's' or self.key == 'S':
             # Manual skip
             self.transition_manager.skip_to_next(time.time() - self.start_time)
 
-        elif py5.key == ' ':
+        elif self.key == ' ':
             # Spacebar - freeze toggle
             self.gesture_recognizer.freeze_active = not self.gesture_recognizer.freeze_active
 
@@ -244,38 +259,14 @@ class NeuralParticleSwarm:
         print("Cleanup complete")
 
 
-# Global sketch instance
-sketch = None
-
-
-def setup():
-    """py5 global setup function"""
-    global sketch
-    sketch = NeuralParticleSwarm()
-    sketch.setup()
-
-
-def draw():
-    """py5 global draw function"""
-    global sketch
-    if sketch:
-        sketch.draw()
-
-
-def key_pressed():
-    """py5 global key_pressed function"""
-    global sketch
-    if sketch:
-        sketch.key_pressed()
-
-
 def main():
     """Main entry point"""
     print("\nStarting Neural Particle Swarm...")
     print("Please wait while systems initialize...\n")
 
-    # Run py5 sketch
-    py5.run_sketch()
+    # Create and run py5 sketch in class mode
+    sketch = NeuralParticleSwarm()
+    py5.run_sketch(sketch_class=sketch, sketch_path=None)
 
 
 if __name__ == '__main__':
