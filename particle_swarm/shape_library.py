@@ -4,7 +4,31 @@ All shapes return NumPy arrays of (N, 3) positions
 """
 
 import numpy as np
+import os
 from config import PARTICLE_COUNT
+
+# Path to the OBJ file relative to project root
+OBJ_FILE_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'stanford-bunny.obj')
+
+
+def load_obj_vertices(filepath):
+    """
+    Parse OBJ file and extract vertex positions.
+
+    Args:
+        filepath: Path to the OBJ file
+
+    Returns:
+        NumPy array (N, 3) of vertex positions
+    """
+    vertices = []
+    with open(filepath, 'r') as f:
+        for line in f:
+            if line.startswith('v '):
+                parts = line.strip().split()
+                x, y, z = float(parts[1]), float(parts[2]), float(parts[3])
+                vertices.append([x, y, z])
+    return np.array(vertices)
 
 
 def validate_shape_points(points, expected_count, shape_name):
@@ -132,18 +156,8 @@ def generate_ellipsoid(num_points, radii, center):
 
 def load_stanford_bunny(num_points=6000):
     """
-    Load Stanford Bunny from OBJ file, NPY file, or generate ellipsoid fallback
-
-    Priority:
-    1. stanford_bunny.obj or stanford-bunny.obj (actual mesh)
-    2. bunny_points.npy (pre-sampled points)
-    3. Ellipsoid approximation (fallback)
-
-    Args:
-        num_points: Target number of particles
-
-    Returns:
-        NumPy array (N, 3) of bunny point cloud
+    Load Stanford Bunny from OBJ file and sample points.
+    If file doesn't exist, create simple bunny-like shape from ellipsoids.
     """
     import os
 
@@ -190,62 +204,32 @@ def load_stanford_bunny(num_points=6000):
 
     # Priority 2: Try to load pre-sampled NumPy file
     try:
-        points = np.load('bunny_points.npy')
-        # Resample to target count
-        indices = np.random.choice(len(points), num_points, replace=(len(points) < num_points))
-        print(f"  ✓ Loaded bunny from bunny_points.npy")
-        return points[indices] * 150  # Scale to fit cube
-    except FileNotFoundError:
-        pass
+        # Load vertices from OBJ file
+        vertices = load_obj_vertices(OBJ_FILE_PATH)
 
-    # Priority 3: Fallback to ellipsoid approximation
-    print(f"  Note: Using ellipsoid approximation (no OBJ/NPY file found)")
-    body = generate_ellipsoid(num_points // 2, (40, 50, 30), (0, 0, 0))
-    head = generate_ellipsoid(num_points // 4, (25, 30, 25), (0, 60, 0))
-    ear1 = generate_ellipsoid(num_points // 8, (8, 25, 8), (-15, 85, 0))
-    ear2 = generate_ellipsoid(num_points // 8, (8, 25, 8), (15, 85, 0))
-    return np.vstack([body, head, ear1, ear2])
+        # Center the model
+        centroid = vertices.mean(axis=0)
+        vertices = vertices - centroid
 
+        # Scale to fit display (original bunny is very small ~0.2 units)
+        max_extent = np.abs(vertices).max()
+        scale_factor = 80.0 / max_extent  # Scale to ~80 units
+        vertices = vertices * scale_factor
 
-def parse_obj_file(filepath):
-    """
-    Parse OBJ file and extract vertex positions
+        # Resample to target point count
+        if len(vertices) >= num_points:
+            indices = np.random.choice(len(vertices), num_points, replace=False)
+        else:
+            indices = np.random.choice(len(vertices), num_points, replace=True)
 
-    OBJ format: Lines starting with "v " contain vertices
-    Format: v x y z [w] (w is optional, we ignore it)
-
-    Args:
-        filepath: Path to .obj file
-
-    Returns:
-        NumPy array (N, 3) of vertex positions
-    """
-    vertices = []
-
-    with open(filepath, 'r') as f:
-        for line in f:
-            line = line.strip()
-
-            # Skip empty lines and comments
-            if not line or line.startswith('#'):
-                continue
-
-            # Parse vertex lines
-            if line.startswith('v '):
-                parts = line.split()
-
-                # Extract x, y, z coordinates (ignore w if present)
-                if len(parts) >= 4:
-                    try:
-                        x = float(parts[1])
-                        y = float(parts[2])
-                        z = float(parts[3])
-                        vertices.append([x, y, z])
-                    except (ValueError, IndexError) as e:
-                        # Skip malformed lines
-                        continue
-
-    return np.array(vertices) if vertices else np.empty((0, 3))
+        return vertices[indices]
+    except (FileNotFoundError, IOError):
+        # Fallback: Create simple bunny-like shape (ellipsoids)
+        body = generate_ellipsoid(num_points // 2, (40, 50, 30), (0, 0, 0))
+        head = generate_ellipsoid(num_points // 4, (25, 30, 25), (0, 60, 0))
+        ear1 = generate_ellipsoid(num_points // 8, (8, 25, 8), (-15, 85, 0))
+        ear2 = generate_ellipsoid(num_points // 8, (8, 25, 8), (15, 85, 0))
+        return np.vstack([body, head, ear1, ear2])
 
 
 def generate_detailed_sphere(num_points=6000, radius=70):
