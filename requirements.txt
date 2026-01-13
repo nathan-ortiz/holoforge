@@ -1,8 +1,10 @@
 # Neural Particle Swarm Dependencies
 # For Raspberry Pi 5 + HyperPixel 4.0 Square
 
-# Core graphics
-py5>=0.8.0
+# Core graphics (Pygame + OpenGL - replaces py5)
+pygame>=2.5.0
+PyOpenGL>=3.1.6
+PyOpenGL_accelerate>=3.1.6
 
 # Camera and vision
 picamera2>=0.3.12
