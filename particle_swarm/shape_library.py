@@ -152,48 +152,139 @@ def generate_detailed_sphere(num_points=6000, radius=70):
     return np.column_stack([x, y, z])
 
 
+def generate_double_helix_torus(num_points=6000, R=60, helix_radius=10, wraps=6):
+    """
+    HIGH ENHANCEMENT #4: Double helix wrapped around torus - signature "wow" shape
+    Combines DNA helix concept with toroidal geometry for stunning 3D depth
+
+    Creates two intertwined helices that wind around a torus path
+    Perfect for beam splitter display - complex 3D geometry from any angle
+
+    Args:
+        num_points: Number of particles
+        R: Major radius of torus (distance from center to tube center)
+        helix_radius: How far helices extend from torus centerline
+        wraps: Number of times helices wrap around the torus (6 recommended)
+    """
+    # Generate parameter for torus path
+    t = np.linspace(0, 2 * np.pi, num_points // 2)
+
+    # Calculate torus centerline (circle in XY plane)
+    torus_x = R * np.cos(t)
+    torus_y = R * np.sin(t)
+    torus_z = np.zeros_like(t)
+
+    # First helix: winds around torus with multiple wraps
+    helix_angle_1 = t * wraps  # Multiple rotations around torus
+
+    # Calculate helix 1 positions
+    # Helix extends perpendicular to torus centerline
+    # Use local coordinate system that rotates with torus
+    h1_x = torus_x + helix_radius * np.cos(helix_angle_1) * np.cos(t)
+    h1_y = torus_y + helix_radius * np.cos(helix_angle_1) * np.sin(t)
+    h1_z = helix_radius * np.sin(helix_angle_1)
+
+    # Second helix: offset by π phase (opposite side)
+    helix_angle_2 = t * wraps + np.pi
+
+    # Calculate helix 2 positions
+    h2_x = torus_x + helix_radius * np.cos(helix_angle_2) * np.cos(t)
+    h2_y = torus_y + helix_radius * np.cos(helix_angle_2) * np.sin(t)
+    h2_z = helix_radius * np.sin(helix_angle_2)
+
+    # Combine both helices
+    helix1 = np.column_stack([h1_x, h1_y, h1_z])
+    helix2 = np.column_stack([h2_x, h2_y, h2_z])
+
+    return np.vstack([helix1, helix2])
+
+
 def generate_cube(num_points=6000, size=100):
     """
-    Cube with points on faces and edges
+    HIGH ENHANCEMENT #3: Wireframe cube with edge emphasis and glowing vertices
+    Creates sci-fi aesthetic with clear depth perception for beam splitter display
+
+    Emphasizes:
+    - 12 edges with dense point distribution
+    - 8 vertices with glowing clusters
+    - No solid faces (wireframe only)
     """
-    points_per_face = num_points // 6
     half_size = size / 2
 
-    faces = []
+    # Define the 8 vertices of the cube
+    vertices = [
+        (-half_size, -half_size, -half_size),  # 0: back-bottom-left
+        (half_size, -half_size, -half_size),   # 1: back-bottom-right
+        (half_size, half_size, -half_size),    # 2: back-top-right
+        (-half_size, half_size, -half_size),   # 3: back-top-left
+        (-half_size, -half_size, half_size),   # 4: front-bottom-left
+        (half_size, -half_size, half_size),    # 5: front-bottom-right
+        (half_size, half_size, half_size),     # 6: front-top-right
+        (-half_size, half_size, half_size),    # 7: front-top-left
+    ]
 
-    # Six faces of the cube
-    for _ in range(points_per_face):
-        # Front and back faces
-        faces.append([np.random.uniform(-half_size, half_size),
-                     np.random.uniform(-half_size, half_size),
-                     half_size])
-        faces.append([np.random.uniform(-half_size, half_size),
-                     np.random.uniform(-half_size, half_size),
-                     -half_size])
+    # Define the 12 edges as pairs of vertex indices
+    edges = [
+        # Bottom square (z = -half_size)
+        (0, 1), (1, 2), (2, 3), (3, 0),
+        # Top square (z = +half_size)
+        (4, 5), (5, 6), (6, 7), (7, 4),
+        # Vertical connecting edges
+        (0, 4), (1, 5), (2, 6), (3, 7),
+    ]
 
-        # Left and right faces
-        faces.append([half_size,
-                     np.random.uniform(-half_size, half_size),
-                     np.random.uniform(-half_size, half_size)])
-        faces.append([-half_size,
-                     np.random.uniform(-half_size, half_size),
-                     np.random.uniform(-half_size, half_size)])
+    # Allocate points: 70% to edges, 30% to vertex clusters
+    points_for_edges = int(num_points * 0.7)
+    points_for_vertices = num_points - points_for_edges
 
-        # Top and bottom faces
-        faces.append([np.random.uniform(-half_size, half_size),
-                     half_size,
-                     np.random.uniform(-half_size, half_size)])
-        faces.append([np.random.uniform(-half_size, half_size),
-                     -half_size,
-                     np.random.uniform(-half_size, half_size)])
+    points_per_edge = points_for_edges // 12
+    points_per_vertex = points_for_vertices // 8
 
-    return np.array(faces[:num_points])
+    all_points = []
+
+    # Generate edge points
+    for v1_idx, v2_idx in edges:
+        v1 = np.array(vertices[v1_idx])
+        v2 = np.array(vertices[v2_idx])
+
+        # Distribute points evenly along this edge
+        t = np.linspace(0, 1, points_per_edge)
+        for ti in t:
+            point = v1 * (1 - ti) + v2 * ti
+            all_points.append(point)
+
+    # Generate vertex glow clusters
+    for vertex in vertices:
+        v = np.array(vertex)
+
+        # Create small point cluster around vertex with random offsets
+        # This creates a "glowing vertex" sci-fi effect
+        for _ in range(points_per_vertex):
+            offset = np.random.uniform(-5, 5, 3)  # Small random offset
+            glowing_point = v + offset
+            all_points.append(glowing_point)
+
+    # Convert to NumPy array
+    points_array = np.array(all_points)
+
+    # Resample to exact target count if needed
+    if len(points_array) != num_points:
+        indices = np.random.choice(len(points_array), num_points, replace=(len(points_array) < num_points))
+        points_array = points_array[indices]
+
+    return points_array
 
 
 def capture_face_pointcloud(camera_frame, num_points=6000):
     """
     Capture face from camera and convert to 3D point cloud
-    Uses simple extrusion (no depth estimation for speed)
+    CRITICAL ENHANCEMENT #1: Uses gradient-based depth estimation for true 3D structure
+
+    Algorithm:
+    - Sobel edge detection finds high-gradient areas (facial features)
+    - High gradients (eyes, nose, mouth) → protrude forward (positive Z)
+    - Low gradients (flat areas, edges) → recede backward (negative Z)
+    - Creates natural 3D facial structure instead of flat extrusion
 
     Args:
         camera_frame: RGB image from camera
@@ -222,35 +313,67 @@ def capture_face_pointcloud(camera_frame, num_points=6000):
     # Resize to manageable size
     face_region = cv2.resize(face_region, (100, 100))
 
-    # Create layered point cloud (simple extrusion)
-    num_layers = 10
-    points_per_layer = num_points // num_layers
+    # ENHANCEMENT: Calculate gradient-based depth map
+    # Step 1: Sobel edge detection to find feature gradients
+    grad_x = cv2.Sobel(face_region, cv2.CV_64F, 1, 0, ksize=3)
+    grad_y = cv2.Sobel(face_region, cv2.CV_64F, 0, 1, ksize=3)
 
+    # Step 2: Calculate gradient magnitude (edge strength)
+    gradient_magnitude = np.sqrt(grad_x**2 + grad_y**2)
+
+    # Step 3: Normalize gradient to [0, 1] range
+    gradient_normalized = gradient_magnitude / (np.max(gradient_magnitude) + 1e-8)
+
+    # Step 4: Normalize brightness to [0, 1] range
+    brightness_normalized = face_region.astype(float) / 255.0
+
+    # Step 5: Create depth map combining gradient (70%) and brightness (30%)
+    # High gradient areas (features) protrude, flat areas recede
+    depth_map = gradient_normalized * 0.7 + brightness_normalized * 0.3
+
+    # Step 6: Generate point cloud from depth map
     points = []
-    for layer in range(num_layers):
-        z_depth = np.linspace(50, -50, num_layers)[layer]
+    y_coords, x_coords = np.where(face_region > 50)  # Threshold for face region
 
-        # Sample face pixels in this layer
-        y_coords, x_coords = np.where(face_region > 50)  # Threshold for face region
-        if len(y_coords) == 0:
-            continue
+    if len(y_coords) == 0:
+        return None
 
-        # Random sample from face pixels
-        sample_size = min(points_per_layer, len(y_coords))
-        indices = np.random.choice(len(y_coords), sample_size, replace=False)
+    # Sample approximately 60% of valid face pixels for density control
+    total_valid_pixels = len(y_coords)
+    target_samples = int(total_valid_pixels * 0.6)
 
-        for idx in indices:
-            # Map pixel coordinates to 3D space
-            px = (x_coords[idx] / 100.0) * 120 - 60  # Center and scale
-            py = (y_coords[idx] / 100.0) * 120 - 60
-            pz = z_depth
+    # Ensure we have enough points
+    if target_samples < num_points:
+        # If not enough valid pixels, sample all with replacement
+        indices = np.random.choice(total_valid_pixels, num_points, replace=True)
+    else:
+        # Sample without replacement for better distribution
+        indices = np.random.choice(total_valid_pixels, min(num_points, target_samples), replace=False)
 
-            points.append([px, py, pz])
+    for idx in indices:
+        y_idx = y_coords[idx]
+        x_idx = x_coords[idx]
+
+        # Map pixel coordinates to 3D space
+        px = (x_idx / 100.0) * 120 - 60  # Center and scale X
+        py = (y_idx / 100.0) * 120 - 60  # Center and scale Y
+
+        # CRITICAL: Set Z from depth map (range: -50 to +50)
+        # depth_map is [0, 1], map to [-50, +50]
+        pz = (depth_map[y_idx, x_idx] * 100) - 50
+
+        points.append([px, py, pz])
 
     if len(points) == 0:
         return None
 
-    return np.array(points)
+    # Resample to exact target count if needed
+    points_array = np.array(points)
+    if len(points_array) != num_points:
+        indices = np.random.choice(len(points_array), num_points, replace=(len(points_array) < num_points))
+        points_array = points_array[indices]
+
+    return points_array
 
 
 class ShapeLibrary:
@@ -264,6 +387,7 @@ class ShapeLibrary:
         self.shape_order = [
             'dna_helix',
             'torus_knot',
+            'double_helix_torus',  # HIGH ENHANCEMENT #4: Signature wow shape
             'face',  # Will be None until captured
             'lorenz_attractor',
             'stanford_bunny',
@@ -275,6 +399,7 @@ class ShapeLibrary:
         print("Generating shapes...")
         self.shapes['dna_helix'] = generate_dna_helix(particle_count)
         self.shapes['torus_knot'] = generate_torus_knot(particle_count)
+        self.shapes['double_helix_torus'] = generate_double_helix_torus(particle_count)  # New!
         self.shapes['lorenz_attractor'] = generate_lorenz_attractor(particle_count)
         self.shapes['stanford_bunny'] = load_stanford_bunny(particle_count)
         self.shapes['detailed_sphere'] = generate_detailed_sphere(particle_count)

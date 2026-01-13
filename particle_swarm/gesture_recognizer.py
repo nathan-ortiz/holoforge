@@ -196,19 +196,23 @@ class GestureRecognizer:
         palm_y = np.mean([landmarks.landmark[i].y for i in palm_landmarks])
         palm_z = np.mean([landmarks.landmark[i].z for i in palm_landmarks])
 
-        # CRITICAL FIX #3: Map to particle coordinate space (NOT display space)
+        # CRITICAL ENHANCEMENT #2: Map to actual particle coordinate space
         # Camera: x [0,1], y [0,1], z [-0.1, 0.1] (relative depth)
-        # Particle space: roughly ±100 for x,y,z (matching shapes in shape_library.py)
+        # Particle space: ±40 to ±100 depending on shape (from shape_library.py)
         #
-        # Note: Shapes use coordinates like:
-        #   - DNA helix: height=150, radius=40 → roughly ±75 in y, ±40 in x,z
-        #   - Torus knot: R=60, r=20 → roughly ±80
-        #   - Sphere: radius=70 → ±70
-        # So we map hand to ±150 range to cover the full particle volume
+        # Actual shape ranges:
+        #   - DNA helix: height=150 (±75 in y), radius=40 (±40 in x,z)
+        #   - Torus knot: R=60, r=20 (approximately ±80)
+        #   - Sphere: radius=70 (±70)
+        #   - Most shapes fit within ±100 cube
+        #
+        # Hand should cover particle volume, not extend beyond it
+        # Using ±100 for X,Y ensures hand covers all shapes
+        # Using ±75 for Z matches typical shape depth range
 
-        x = (palm_x - 0.5) * 300  # Range: -150 to +150
-        y = (palm_y - 0.5) * 300  # Range: -150 to +150
-        z = palm_z * 200  # Depth range: roughly -100 to +100
+        x = (palm_x - 0.5) * 200  # Range: -100 to +100
+        y = (palm_y - 0.5) * 200  # Range: -100 to +100
+        z = palm_z * 150          # Depth range: -75 to +75
 
         return (x, y, z)
 

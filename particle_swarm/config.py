@@ -27,10 +27,11 @@ BOID_SEPARATION_STRENGTH = 0.8
 ENABLE_BOID_SEPARATION = False
 
 # Shape Cycling
-SHAPE_HOLD_TIME = 8.0  # seconds
-DISSOLVE_TIME = 1.0
-SWIRL_TIME = 0.5
-FORM_TIME = 1.5
+# MEDIUM ENHANCEMENT #5: Dramatic, visible transitions for sci-fi aesthetic
+SHAPE_HOLD_TIME = 10.0  # seconds - Increased from 8.0 for longer appreciation time
+DISSOLVE_TIME = 1.5     # seconds - Increased from 1.0 to make dissolve visible
+SWIRL_TIME = 1.0        # seconds - DOUBLED from 0.5 to make swirl dramatic and visible
+FORM_TIME = 2.0         # seconds - Increased from 1.5 for slower formation (builds anticipation)
 
 # Colors (depth-based gradient)
 COLOR_NEAR = (0, 255, 255)    # Cyan
