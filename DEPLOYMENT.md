@@ -51,6 +51,15 @@ Complete all items before deploying to Raspberry Pi 5.
 - [ ] AUTO_ROTATE_SPEED set appropriately (0.1 rad/s)
 - [ ] Color gradients configured (cyan-white-magenta)
 
+### Optional Files (Enhanced Shapes)
+- [ ] **Stanford Bunny OBJ** (optional but recommended)
+  - Filename: `stanford_bunny.obj` or `stanford-bunny.obj`
+  - Location: Project root directory
+  - When present: Uses actual Stanford Bunny mesh (iconic 3D model)
+  - When absent: Falls back to ellipsoid approximation
+  - Test: Run `python test_obj_parsing.py` to validate OBJ file
+  - Expected: 1,000-50,000 vertices (automatically resampled to particle count)
+
 ### Raspberry Pi Specific
 - [ ] Shell script has DISPLAY=:0.0 export
 - [ ] Camera initialization handles common errors gracefully
