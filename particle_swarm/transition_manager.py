@@ -102,6 +102,12 @@ class TransitionManager:
             next_shape_name = shape_order[self.current_shape_index]
             self.next_targets = self.shape_library.get_shape(next_shape_name)
 
+        # Resample next_targets to match current_targets size for interpolation
+        if self.next_targets is not None and self.current_targets is not None:
+            self.next_targets = self._resample_targets(
+                self.next_targets, len(self.current_targets)
+            )
+
         print(f"Swirling...")
 
     def start_forming(self, current_time):
@@ -245,3 +251,29 @@ class TransitionManager:
             'frozen': self.frozen,
             'elapsed': 0  # Would need current_time to calculate
         }
+
+    def _resample_targets(self, targets, target_count):
+        """
+        Resample target positions to match a specific count.
+        Handles variable array sizes gracefully for interpolation.
+
+        Args:
+            targets: NumPy array (M, 3) of positions to resample
+            target_count: Desired number of points
+
+        Returns:
+            NumPy array (target_count, 3) of resampled positions
+        """
+        current_count = len(targets)
+
+        if current_count == target_count:
+            return targets
+
+        if current_count < target_count:
+            # Upsample: repeat with random selection
+            indices = np.random.choice(current_count, target_count, replace=True)
+        else:
+            # Downsample: random selection without replacement
+            indices = np.random.choice(current_count, target_count, replace=False)
+
+        return targets[indices]
