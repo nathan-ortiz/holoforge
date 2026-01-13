@@ -65,7 +65,11 @@ class ParticleSystem:
         Returns:
             NumPy array (N, 3) of force vectors
         """
-        hand_pos = np.array(hand_state['position'])
+        hand_pos = np.array(hand_state['position'], dtype=np.float64)
+
+        # Validate hand position - reject NaN or Inf values
+        if not np.all(np.isfinite(hand_pos)):
+            return np.zeros_like(self.positions)
 
         # ENHANCEMENT #5: Early distance culling for performance
         # Calculate distances first, then only process nearby particles
@@ -132,10 +136,15 @@ class ParticleSystem:
         z_values = self.positions[:, 2]
 
         # Normalize Z to [0, 1] for color interpolation
-        z_norm = np.clip(
-            (z_values - Z_FAR_THRESHOLD) / (Z_NEAR_THRESHOLD - Z_FAR_THRESHOLD),
-            0, 1
-        )
+        # Protect against division by zero if thresholds are equal
+        z_range = Z_NEAR_THRESHOLD - Z_FAR_THRESHOLD
+        if abs(z_range) < 1e-6:
+            z_norm = np.full_like(z_values, 0.5)  # All particles at midpoint
+        else:
+            z_norm = np.clip(
+                (z_values - Z_FAR_THRESHOLD) / z_range,
+                0, 1
+            )
 
         # CRITICAL FIX #2: Fully vectorized color interpolation
         # Create boolean masks for the two color regions
@@ -192,6 +201,11 @@ class ParticleSystem:
         """
         # ENHANCEMENT #4: Particle count validation with automatic resampling
         if target_positions is None:
+            return
+
+        # Validate array - reject if contains NaN or Inf
+        if not np.all(np.isfinite(target_positions)):
+            print("WARNING: Target positions contain NaN or Inf values, skipping update")
             return
 
         original_count = len(target_positions)

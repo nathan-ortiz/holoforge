@@ -20,14 +20,32 @@ def load_obj_vertices(filepath):
 
     Returns:
         NumPy array (N, 3) of vertex positions
+
+    Raises:
+        FileNotFoundError: If file doesn't exist
+        ValueError: If file is malformed or empty
     """
     vertices = []
-    with open(filepath, 'r') as f:
-        for line in f:
-            if line.startswith('v '):
-                parts = line.strip().split()
-                x, y, z = float(parts[1]), float(parts[2]), float(parts[3])
-                vertices.append([x, y, z])
+    try:
+        with open(filepath, 'r') as f:
+            for line_num, line in enumerate(f, 1):
+                if line.startswith('v '):
+                    parts = line.strip().split()
+                    if len(parts) < 4:
+                        print(f"Warning: Malformed vertex line {line_num}: {line.strip()}")
+                        continue
+                    try:
+                        x, y, z = float(parts[1]), float(parts[2]), float(parts[3])
+                        vertices.append([x, y, z])
+                    except ValueError as e:
+                        print(f"Warning: Invalid vertex values at line {line_num}: {e}")
+                        continue
+    except IOError as e:
+        raise FileNotFoundError(f"Cannot read OBJ file: {filepath}") from e
+
+    if len(vertices) == 0:
+        raise ValueError(f"No vertices found in OBJ file: {filepath}")
+
     return np.array(vertices)
 
 
@@ -57,9 +75,20 @@ def generate_dna_helix(num_points=6000, height=150, radius=40):
     """
     Two intertwined helices with connecting rungs
     Creates iconic DNA double helix structure
+
+    Returns exactly num_points points.
     """
-    points_per_strand = num_points // 2 - num_points // 10
-    points_rungs = num_points // 10
+    # Calculate points allocation to ensure exact count
+    # Each rung has 5 points, so rungs must be divisible by 5
+    num_rungs = num_points // 10  # Number of rung connections
+    points_for_rungs = num_rungs * 5  # Total points in rungs
+    points_for_strands = num_points - points_for_rungs  # Remaining for strands
+    points_per_strand = points_for_strands // 2
+
+    # Adjust to ensure exact count
+    total_allocated = points_per_strand * 2 + points_for_rungs
+    extra_points = num_points - total_allocated
+    points_per_strand += extra_points // 2  # Add any remainder to strands
 
     # Helix parametric equations
     t = np.linspace(0, 4 * np.pi, points_per_strand)
@@ -79,7 +108,7 @@ def generate_dna_helix(num_points=6000, height=150, radius=40):
     strand2 = np.column_stack([x2, y2, z2])
 
     # Add rungs (connecting lines between strands)
-    rung_indices = np.linspace(0, points_per_strand-1, points_rungs, dtype=int)
+    rung_indices = np.linspace(0, points_per_strand-1, num_rungs, dtype=int)
     rungs = []
     for idx in rung_indices:
         # Create line between strand points
@@ -87,9 +116,19 @@ def generate_dna_helix(num_points=6000, height=150, radius=40):
             rung_point = strand1[idx] * (1 - alpha) + strand2[idx] * alpha
             rungs.append(rung_point)
 
-    rungs = np.array(rungs)
+    rungs = np.array(rungs) if rungs else np.zeros((0, 3))
 
-    return np.vstack([strand1, strand2, rungs])
+    result = np.vstack([strand1, strand2, rungs])
+
+    # Final safety check - resample if needed to ensure exact count
+    if len(result) != num_points:
+        if len(result) > num_points:
+            indices = np.random.choice(len(result), num_points, replace=False)
+        else:
+            indices = np.random.choice(len(result), num_points, replace=True)
+        result = result[indices]
+
+    return result
 
 
 def generate_torus_knot(num_points=6000, p=3, q=2, R=60, r=20):
@@ -157,7 +196,9 @@ def generate_ellipsoid(num_points, radii, center):
 def load_stanford_bunny(num_points=6000):
     """
     Load Stanford Bunny from OBJ file and sample points.
-    If file doesn't exist, create simple bunny-like shape from ellipsoids.
+    If file doesn't exist or is malformed, create simple bunny-like shape from ellipsoids.
+
+    Returns exactly num_points points.
     """
     import os
 
@@ -213,6 +254,8 @@ def load_stanford_bunny(num_points=6000):
 
         # Scale to fit display (original bunny is very small ~0.2 units)
         max_extent = np.abs(vertices).max()
+        if max_extent == 0:
+            raise ValueError("All vertices at same position")
         scale_factor = 80.0 / max_extent  # Scale to ~80 units
         vertices = vertices * scale_factor
 
@@ -223,8 +266,9 @@ def load_stanford_bunny(num_points=6000):
             indices = np.random.choice(len(vertices), num_points, replace=True)
 
         return vertices[indices]
-    except (FileNotFoundError, IOError):
+    except (FileNotFoundError, IOError, ValueError) as e:
         # Fallback: Create simple bunny-like shape (ellipsoids)
+        print(f"Using fallback bunny shape: {e}")
         body = generate_ellipsoid(num_points // 2, (40, 50, 30), (0, 0, 0))
         head = generate_ellipsoid(num_points // 4, (25, 30, 25), (0, 60, 0))
         ear1 = generate_ellipsoid(num_points // 8, (8, 25, 8), (-15, 85, 0))
@@ -407,11 +451,19 @@ def capture_face_pointcloud(camera_frame, num_points=6000):
         num_points: Number of points to generate
 
     Returns:
-        NumPy array (N, 3) or None if no face detected
+        NumPy array (num_points, 3) or None if no face detected
+
+    Note: Always returns exactly num_points if face is detected.
     """
     import cv2
 
-    gray = cv2.cvtColor(camera_frame, cv2.COLOR_RGB2GRAY)
+    if camera_frame is None:
+        return None
+
+    try:
+        gray = cv2.cvtColor(camera_frame, cv2.COLOR_RGB2GRAY)
+    except cv2.error:
+        return None
 
     # Detect face region (use Haar cascade)
     face_cascade = cv2.CascadeClassifier(
@@ -458,13 +510,9 @@ def capture_face_pointcloud(camera_frame, num_points=6000):
     total_valid_pixels = len(y_coords)
     target_samples = int(total_valid_pixels * 0.6)
 
-    # Ensure we have enough points
-    if target_samples < num_points:
-        # If not enough valid pixels, sample all with replacement
-        indices = np.random.choice(total_valid_pixels, num_points, replace=True)
-    else:
-        # Sample without replacement for better distribution
-        indices = np.random.choice(total_valid_pixels, min(num_points, target_samples), replace=False)
+        # Random sample from face pixels (with replacement to ensure count)
+        sample_size = points_per_layer
+        indices = np.random.choice(len(y_coords), sample_size, replace=True)
 
     for idx in indices:
         y_idx = y_coords[idx]
@@ -483,13 +531,17 @@ def capture_face_pointcloud(camera_frame, num_points=6000):
     if len(points) == 0:
         return None
 
-    # Resample to exact target count if needed
-    points_array = np.array(points)
-    if len(points_array) != num_points:
-        indices = np.random.choice(len(points_array), num_points, replace=(len(points_array) < num_points))
-        points_array = points_array[indices]
+    result = np.array(points)
 
-    return points_array
+    # Ensure exactly num_points are returned
+    if len(result) != num_points:
+        if len(result) > num_points:
+            indices = np.random.choice(len(result), num_points, replace=False)
+        else:
+            indices = np.random.choice(len(result), num_points, replace=True)
+        result = result[indices]
+
+    return result
 
 
 class ShapeLibrary:
