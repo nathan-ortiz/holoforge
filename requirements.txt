@@ -1,0 +1,17 @@
+# Neural Particle Swarm Dependencies
+# For Raspberry Pi 5 + HyperPixel 4.0 Square
+
+# Core graphics
+py5>=0.8.0
+
+# Camera and vision
+picamera2>=0.3.12
+mediapipe>=0.10.0
+opencv-python>=4.8.0
+
+# Numerical computing
+numpy==1.26.4
+scipy>=1.11.0
+
+# Optional: Performance monitoring
+psutil>=5.9.0
