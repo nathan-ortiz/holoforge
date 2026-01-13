@@ -7,6 +7,28 @@ import numpy as np
 from config import PARTICLE_COUNT
 
 
+def validate_shape_points(points, expected_count, shape_name):
+    """
+    Validate that a shape has the correct number of points
+    Logs warning if mismatch detected (helps debug shape generation)
+
+    Args:
+        points: NumPy array of shape points
+        expected_count: Expected number of points
+        shape_name: Name of shape for error reporting
+
+    Returns:
+        points array (unchanged) for chaining
+    """
+    actual_count = len(points) if points is not None else 0
+
+    if actual_count != expected_count:
+        print(f"WARNING: {shape_name} generated {actual_count} points, expected {expected_count}")
+        print(f"  → Particle system will automatically resample to {expected_count}")
+
+    return points
+
+
 def generate_dna_helix(num_points=6000, height=150, radius=40):
     """
     Two intertwined helices with connecting rungs
@@ -166,8 +188,12 @@ def generate_double_helix_torus(num_points=6000, R=60, helix_radius=10, wraps=6)
         helix_radius: How far helices extend from torus centerline
         wraps: Number of times helices wrap around the torus (6 recommended)
     """
+    # BUG FIX: Handle odd particle counts properly
+    # Split points between two helices, ensuring we generate exactly num_points
+    points_per_helix = num_points // 2
+
     # Generate parameter for torus path
-    t = np.linspace(0, 2 * np.pi, num_points // 2)
+    t = np.linspace(0, 2 * np.pi, points_per_helix)
 
     # Calculate torus centerline (circle in XY plane)
     torus_x = R * np.cos(t)
@@ -196,7 +222,14 @@ def generate_double_helix_torus(num_points=6000, R=60, helix_radius=10, wraps=6)
     helix1 = np.column_stack([h1_x, h1_y, h1_z])
     helix2 = np.column_stack([h2_x, h2_y, h2_z])
 
-    return np.vstack([helix1, helix2])
+    combined = np.vstack([helix1, helix2])
+
+    # Handle odd particle counts: add one more point if needed
+    if len(combined) < num_points:
+        # Duplicate first point to reach exact count
+        combined = np.vstack([combined, combined[0:1]])
+
+    return combined
 
 
 def generate_cube(num_points=6000, size=100):
@@ -397,15 +430,22 @@ class ShapeLibrary:
 
         # Pre-generate all shapes (expensive, but only done once)
         print("Generating shapes...")
-        self.shapes['dna_helix'] = generate_dna_helix(particle_count)
-        self.shapes['torus_knot'] = generate_torus_knot(particle_count)
-        self.shapes['double_helix_torus'] = generate_double_helix_torus(particle_count)  # New!
-        self.shapes['lorenz_attractor'] = generate_lorenz_attractor(particle_count)
-        self.shapes['stanford_bunny'] = load_stanford_bunny(particle_count)
-        self.shapes['detailed_sphere'] = generate_detailed_sphere(particle_count)
-        self.shapes['cube'] = generate_cube(particle_count)
+        self.shapes['dna_helix'] = validate_shape_points(
+            generate_dna_helix(particle_count), particle_count, 'DNA Helix')
+        self.shapes['torus_knot'] = validate_shape_points(
+            generate_torus_knot(particle_count), particle_count, 'Torus Knot')
+        self.shapes['double_helix_torus'] = validate_shape_points(
+            generate_double_helix_torus(particle_count), particle_count, 'Double Helix Torus')
+        self.shapes['lorenz_attractor'] = validate_shape_points(
+            generate_lorenz_attractor(particle_count), particle_count, 'Lorenz Attractor')
+        self.shapes['stanford_bunny'] = validate_shape_points(
+            load_stanford_bunny(particle_count), particle_count, 'Stanford Bunny')
+        self.shapes['detailed_sphere'] = validate_shape_points(
+            generate_detailed_sphere(particle_count), particle_count, 'Detailed Sphere')
+        self.shapes['cube'] = validate_shape_points(
+            generate_cube(particle_count), particle_count, 'Wireframe Cube')
         self.shapes['face'] = None  # Captured on demand
-        print("Shapes generated successfully!")
+        print("✓ All shapes generated successfully!")
 
     def get_shape(self, name):
         """
